@@ -19,7 +19,12 @@ async function connectDB() {
   if (db) return db;
   
   try {
-    const client = new MongoClient(MONGODB_URI);
+    const client = new MongoClient(MONGODB_URI, {
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000
+    });
     await client.connect();
     db = client.db(DB_NAME);
     console.log('✅ Connected to MongoDB Atlas');
