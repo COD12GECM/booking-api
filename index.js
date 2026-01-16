@@ -1,30 +1,34 @@
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DB_FILE = path.join(__dirname, 'data.json');
 
-// Initialize database
-function initDB() {
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify({ bookings: [], config: { slotsPerHour: 1 } }, null, 2));
-  }
-}
+// MongoDB Connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://bookinguser:Hj4O6Mlri3JmVpfM1@cluster0.9hej7ao.mongodb.net/?appName=Cluster0';
+const DB_NAME = 'bookingdb';
 
-function loadDB() {
+let db = null;
+
+async function connectDB() {
+  if (db) return db;
+  
   try {
-    initDB();
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  } catch (e) {
-    return { bookings: [], config: { slotsPerHour: 1 } };
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    db = client.db(DB_NAME);
+    console.log('✅ Connected to MongoDB Atlas');
+    
+    // Create indexes for better performance
+    await db.collection('bookings').createIndex({ date: 1, time: 1 });
+    await db.collection('bookings').createIndex({ email: 1 });
+    
+    return db;
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error);
+    throw error;
   }
-}
-
-function saveDB(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
 // Middleware
@@ -39,7 +43,8 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.json({ 
     status: 'ok', 
-    message: 'Booking API v2.0',
+    message: 'Booking API v3.0 (MongoDB)',
+    database: db ? 'connected' : 'disconnected',
     endpoints: {
       'GET /api/bookings': 'Get booking counts by date-time',
       'POST /api/bookings': 'Create a booking',
@@ -52,34 +57,37 @@ app.get('/', (req, res) => {
 });
 
 // Get booking counts by date-time slot
-app.get('/api/bookings', (req, res) => {
+app.get('/api/bookings', async (req, res) => {
   try {
-    const data = loadDB();
-    const counts = {};
+    const database = await connectDB();
+    const bookings = await database.collection('bookings').find({}).toArray();
     
-    data.bookings.forEach(booking => {
+    const counts = {};
+    bookings.forEach(booking => {
       const key = `${booking.date}-${booking.time}`;
       counts[key] = (counts[key] || 0) + 1;
     });
     
     res.json({ success: true, bookings: counts });
   } catch (error) {
+    console.error('Error getting bookings:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Get all bookings (admin)
-app.get('/api/bookings/all', (req, res) => {
+app.get('/api/bookings/all', async (req, res) => {
   try {
-    const data = loadDB();
-    res.json({ success: true, bookings: data.bookings });
+    const database = await connectDB();
+    const bookings = await database.collection('bookings').find({}).sort({ createdAt: -1 }).toArray();
+    res.json({ success: true, bookings });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Create a booking
-app.post('/api/bookings', (req, res) => {
+app.post('/api/bookings', async (req, res) => {
   try {
     const { date, time, service, name, email, phone, timezone, notes, slotsPerHour } = req.body;
     
@@ -87,11 +95,11 @@ app.post('/api/bookings', (req, res) => {
       return res.status(400).json({ success: false, error: 'Date and time are required' });
     }
     
-    const data = loadDB();
-    const maxSlots = slotsPerHour || data.config.slotsPerHour || 1;
+    const database = await connectDB();
+    const maxSlots = slotsPerHour || 1;
     
     // Count existing bookings for this slot
-    const existingCount = data.bookings.filter(b => b.date === date && b.time === time).length;
+    const existingCount = await database.collection('bookings').countDocuments({ date, time });
     
     if (existingCount >= maxSlots) {
       return res.status(409).json({ 
@@ -114,8 +122,7 @@ app.post('/api/bookings', (req, res) => {
       createdAt: new Date().toISOString()
     };
     
-    data.bookings.push(booking);
-    saveDB(data);
+    await database.collection('bookings').insertOne(booking);
     
     console.log(`✅ Booking created: ${date} ${time} - ${name}`);
     
@@ -132,18 +139,16 @@ app.post('/api/bookings', (req, res) => {
 });
 
 // Delete a booking
-app.delete('/api/bookings/:id', (req, res) => {
+app.delete('/api/bookings/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const data = loadDB();
+    const database = await connectDB();
     
-    const index = data.bookings.findIndex(b => b.id === id);
-    if (index === -1) {
+    const result = await database.collection('bookings').deleteOne({ id });
+    
+    if (result.deletedCount === 0) {
       return res.status(404).json({ success: false, error: 'Booking not found' });
     }
-    
-    data.bookings.splice(index, 1);
-    saveDB(data);
     
     res.json({ success: true, message: 'Booking deleted' });
   } catch (error) {
@@ -152,21 +157,30 @@ app.delete('/api/bookings/:id', (req, res) => {
 });
 
 // Get configuration
-app.get('/api/config', (req, res) => {
+app.get('/api/config', async (req, res) => {
   try {
-    const data = loadDB();
-    res.json({ success: true, config: data.config });
+    const database = await connectDB();
+    let config = await database.collection('config').findOne({ _id: 'settings' });
+    
+    if (!config) {
+      config = { slotsPerHour: 1 };
+      await database.collection('config').insertOne({ _id: 'settings', ...config });
+    }
+    
+    res.json({ success: true, config });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Alias for config
-app.get('/api/config/slots', (req, res) => {
+app.get('/api/config/slots', async (req, res) => {
   try {
-    const data = loadDB();
+    const database = await connectDB();
+    let config = await database.collection('config').findOne({ _id: 'settings' });
+    
     res.json({ 
-      slotsPerHour: data.config.slotsPerHour || 1,
+      slotsPerHour: config?.slotsPerHour || 1,
       showAvailability: true
     });
   } catch (error) {
@@ -175,39 +189,39 @@ app.get('/api/config/slots', (req, res) => {
 });
 
 // Update configuration
-app.post('/api/config', (req, res) => {
+app.post('/api/config', async (req, res) => {
   try {
     const { slotsPerHour } = req.body;
-    const data = loadDB();
+    const database = await connectDB();
     
-    data.config = {
-      ...data.config,
-      slotsPerHour: parseInt(slotsPerHour) || 1
-    };
+    const config = { slotsPerHour: parseInt(slotsPerHour) || 1 };
     
-    saveDB(data);
-    res.json({ success: true, config: data.config });
+    await database.collection('config').updateOne(
+      { _id: 'settings' },
+      { $set: config },
+      { upsert: true }
+    );
+    
+    res.json({ success: true, config });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Cancel booking by email
-app.post('/api/bookings/cancel', (req, res) => {
+app.post('/api/bookings/cancel', async (req, res) => {
   try {
     const { id, email } = req.body;
-    const data = loadDB();
+    const database = await connectDB();
     
-    const index = data.bookings.findIndex(b => 
-      b.id === parseInt(id) && b.email.toLowerCase() === email.toLowerCase()
-    );
+    const result = await database.collection('bookings').deleteOne({
+      id: parseInt(id),
+      email: { $regex: new RegExp(`^${email}$`, 'i') }
+    });
     
-    if (index === -1) {
+    if (result.deletedCount === 0) {
       return res.status(404).json({ success: false, error: 'Booking not found or email does not match' });
     }
-    
-    data.bookings.splice(index, 1);
-    saveDB(data);
     
     res.json({ success: true, message: 'Booking cancelled successfully' });
   } catch (error) {
@@ -216,23 +230,21 @@ app.post('/api/bookings/cancel', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  initDB();
+app.listen(PORT, async () => {
   console.log(`
 ╔════════════════════════════════════════════╗
-║     🗓️  BOOKING API v2.0 RUNNING          ║
+║     🗓️  BOOKING API v3.0 (MongoDB)        ║
 ╠════════════════════════════════════════════╣
 ║  Port: ${PORT}                               ║
-║  Status: Ready                             ║
+║  Status: Starting...                       ║
 ╚════════════════════════════════════════════╝
-
-Endpoints:
-  GET  /                    Health check
-  GET  /api/bookings        Get booking counts
-  POST /api/bookings        Create booking
-  GET  /api/bookings/all    Get all bookings
-  DEL  /api/bookings/:id    Delete booking
-  GET  /api/config          Get config
-  POST /api/config          Update config
   `);
+  
+  // Connect to MongoDB on startup
+  try {
+    await connectDB();
+    console.log('🚀 Server ready with MongoDB Atlas!');
+  } catch (error) {
+    console.error('⚠️ Server started but MongoDB connection failed:', error.message);
+  }
 });
