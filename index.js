@@ -20,22 +20,28 @@ async function connectDB() {
   
   try {
     const client = new MongoClient(MONGODB_URI, {
-      tls: true,
-      tlsAllowInvalidCertificates: false,
+      retryWrites: true,
+      w: 'majority',
+      maxPoolSize: 10,
       serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000
+      socketTimeoutMS: 45000
     });
     await client.connect();
     db = client.db(DB_NAME);
     console.log('✅ Connected to MongoDB Atlas');
     
     // Create indexes for better performance
-    await db.collection('bookings').createIndex({ date: 1, time: 1 });
-    await db.collection('bookings').createIndex({ email: 1 });
+    try {
+      await db.collection('bookings').createIndex({ date: 1, time: 1 });
+      await db.collection('bookings').createIndex({ email: 1 });
+    } catch (indexError) {
+      console.log('Index already exists or error:', indexError.message);
+    }
     
     return db;
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error('❌ MongoDB connection error:', error.message);
+    db = null;
     throw error;
   }
 }
