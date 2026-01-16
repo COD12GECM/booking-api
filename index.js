@@ -5,8 +5,12 @@ const { MongoClient } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://bookinguser:Hj4O6Mlri3JmVpfM1@cluster0.9hej7ao.mongodb.net/?appName=Cluster0';
+// MongoDB Connection - MUST be set in environment variables
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI environment variable is required!');
+}
 const DB_NAME = 'bookingdb';
 
 let db = null;
