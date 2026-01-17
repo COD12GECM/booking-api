@@ -373,6 +373,170 @@ async function sendConfirmationEmail(booking) {
   }
 }
 
+// Send new booking notification to clinic owner
+async function sendOwnerBookingNotification(booking) {
+  if (!BREVO_API_KEY) {
+    console.log('⚠️ Skipping owner notification - BREVO_API_KEY not configured');
+    return false;
+  }
+
+  const CLINIC_NAME = booking.clinicName || 'Clinic';
+  const CLINIC_EMAIL = booking.clinicEmail || '';
+  
+  if (!CLINIC_EMAIL) {
+    console.log('⚠️ Skipping owner notification - no clinic email in booking');
+    return false;
+  }
+
+  const dateObj = new Date(booking.date + 'T' + booking.time);
+  const formattedDate = dateObj.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+
+  const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f8f9fa;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px; text-align: center;">
+              <div style="width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px;">
+                <span style="font-size: 32px; line-height: 64px;">🎉</span>
+              </div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">New Booking!</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px;">A new appointment has been scheduled</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 32px 40px;">
+              <h2 style="color: #1a1a2e; font-size: 18px; margin: 0 0 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px;">📅 Appointment Details</h2>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #bbf7d0;">
+                          <span style="color: #166534; font-size: 12px; text-transform: uppercase;">Date & Time</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600;">${formattedDate} at ${booking.time}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #bbf7d0;">
+                          <span style="color: #166534; font-size: 12px; text-transform: uppercase;">Service</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600;">${booking.service}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0;">
+                          <span style="color: #166534; font-size: 12px; text-transform: uppercase;">Booking ID</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600;">#${booking.id}</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <h2 style="color: #1a1a2e; font-size: 18px; margin: 24px 0 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px;">👤 Client Information</h2>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                          <span style="color: #64748b; font-size: 12px; text-transform: uppercase;">Name</span><br>
+                          <span style="color: #1a1a2e; font-size: 16px; font-weight: 600;">${booking.name}</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                          <span style="color: #64748b; font-size: 12px; text-transform: uppercase;">Email</span><br>
+                          <a href="mailto:${booking.email}" style="color: #3b82f6; font-size: 16px; text-decoration: none;">${booking.email}</a>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                          <span style="color: #64748b; font-size: 12px; text-transform: uppercase;">Phone</span><br>
+                          <a href="tel:${booking.phone}" style="color: #3b82f6; font-size: 16px; text-decoration: none;">${booking.phone || 'Not provided'}</a>
+                        </td>
+                      </tr>
+                      ${booking.notes ? `<tr>
+                        <td style="padding: 8px 0;">
+                          <span style="color: #64748b; font-size: 12px; text-transform: uppercase;">Notes</span><br>
+                          <span style="color: #1a1a2e; font-size: 14px;">${booking.notes}</span>
+                        </td>
+                      </tr>` : ''}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f8fafc; padding: 20px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="color: #94a3b8; font-size: 12px; margin: 0;">This is an automated notification from ${CLINIC_NAME} Booking System</p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: {
+          name: `${CLINIC_NAME} Booking System`,
+          email: BREVO_SENDER_EMAIL
+        },
+        to: [{
+          email: CLINIC_EMAIL,
+          name: CLINIC_NAME
+        }],
+        subject: `🎉 New Booking - ${booking.name} (${formattedDate} at ${booking.time})`,
+        htmlContent: emailHtml
+      })
+    });
+
+    if (response.ok) {
+      console.log(`📧 Owner notification sent to ${CLINIC_EMAIL}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('❌ Owner notification error:', error.message);
+    return false;
+  }
+}
+
 // Send cancellation notification to clinic owner
 async function sendOwnerCancellationNotification(booking) {
   if (!BREVO_API_KEY) {
@@ -713,9 +877,14 @@ app.post('/api/bookings', async (req, res) => {
     
     console.log(`✅ Booking created: ${date} ${time} - ${name} (${clinicName})`);
     
-    // Send confirmation email
+    // Send confirmation email to client
     if (email) {
       sendConfirmationEmail(booking);
+    }
+    
+    // Send notification to clinic owner about new booking
+    if (clinicEmail) {
+      sendOwnerBookingNotification(booking);
     }
     
     res.json({ 
