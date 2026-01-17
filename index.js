@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3001;
 // MongoDB Connection - MUST be set in environment variables
 const MONGODB_URI = process.env.MONGODB_URI;
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_SENDER_EMAIL = 'noreply@brevosend.com'; // Brevo's default sender - no verification needed
+const BREVO_SENDER_EMAIL = 'theemperorstore22@gmail.com'; // Must be verified in Brevo
 
 if (!MONGODB_URI) {
   console.error('❌ MONGODB_URI environment variable is required!');
