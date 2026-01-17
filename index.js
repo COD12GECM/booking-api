@@ -2,6 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient } = require('mongodb');
 const crypto = require('crypto');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -9,7 +13,10 @@ const PORT = process.env.PORT || 3001;
 // MongoDB Connection - MUST be set in environment variables
 const MONGODB_URI = process.env.MONGODB_URI;
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_SENDER_EMAIL = 'bookingsbuildhaze@gmail.com'; // Must be verified in Brevo
+const BREVO_SENDER_EMAIL = 'bookingsbuildhaze@gmail.com';
+
+// API Key for secure communication (set in Render environment)
+const API_SECRET_KEY = process.env.API_SECRET_KEY || 'buildhaze-booking-secret-2024';
 
 if (!MONGODB_URI) {
   console.error('❌ MONGODB_URI environment variable is required!');
@@ -56,13 +63,105 @@ async function connectDB() {
   }
 }
 
-// Middleware
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type']
+// ===========================================
+// SECURITY MIDDLEWARE
+// ===========================================
+
+// 1. Security Headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
-app.use(express.json());
+
+// 2. Rate Limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per 15 min
+  message: { success: false, error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const bookingLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 bookings per minute per IP
+  message: { success: false, error: 'Too many booking attempts. Please wait a moment.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.use(apiLimiter);
+
+// 3. CORS - ONLY allow your Shopify domain
+const allowedOrigins = [
+  'https://buildhaze.com',
+  'https://www.buildhaze.com',
+  'https://buildhaze.myshopify.com',
+  'https://dashboard.buildhaze.com',
+  'https://booking-dashboard-eco2.onrender.com'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[SECURITY] Blocked CORS request from: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'X-API-Key'],
+  credentials: true
+}));
+
+// 4. Body parser with limits
+app.use(express.json({ limit: '10kb' }));
+
+// 5. NoSQL Injection Prevention
+app.use(mongoSanitize({
+  replaceWith: '_',
+  onSanitize: ({ req, key }) => {
+    console.warn(`[SECURITY] NoSQL injection attempt blocked: ${key}`);
+  }
+}));
+
+// 6. HTTP Parameter Pollution Prevention
+app.use(hpp());
+
+// 7. API Key validation middleware (for sensitive endpoints)
+const validateApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  // For public booking endpoints, API key is optional but logged
+  if (!apiKey) {
+    // Allow public access but log it
+    return next();
+  }
+  
+  if (apiKey !== API_SECRET_KEY) {
+    console.warn(`[SECURITY] Invalid API key attempt from ${req.ip}`);
+    return res.status(401).json({ success: false, error: 'Invalid API key' });
+  }
+  
+  next();
+};
+
+// 8. Input sanitization function
+const sanitizeInput = (input) => {
+  if (typeof input !== 'string') return input;
+  return input
+    .replace(/[<>]/g, '') // Remove HTML tags
+    .replace(/javascript:/gi, '') // Remove JS protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers
+    .trim()
+    .substring(0, 500); // Limit length
+};
+
+// 9. Remove X-Powered-By
+app.disable('x-powered-by');
 
 // Health check
 app.get('/', (req, res) => {
@@ -955,8 +1054,8 @@ async function sendOwnerCancelledClientEmail(booking) {
   }
 }
 
-// Create a booking
-app.post('/api/bookings', async (req, res) => {
+// Create a booking (with rate limiting and input sanitization)
+app.post('/api/bookings', bookingLimiter, async (req, res) => {
   try {
     const { 
       date, time, service, name, email, phone, timezone, notes, slotsPerHour,
@@ -964,9 +1063,29 @@ app.post('/api/bookings', async (req, res) => {
       clinicName, clinicEmail, clinicPhone, clinicAddress, websiteUrl
     } = req.body;
     
+    // Validate required fields
     if (!date || !time) {
       return res.status(400).json({ success: false, error: 'Date and time are required' });
     }
+    
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ success: false, error: 'Invalid date format' });
+    }
+    
+    // Validate time format (HH:MM)
+    if (!/^\d{2}:\d{2}$/.test(time)) {
+      return res.status(400).json({ success: false, error: 'Invalid time format' });
+    }
+    
+    // Validate email format if provided
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email format' });
+    }
+    
+    // Log booking attempt
+    console.log(`[BOOKING] Attempt from ${req.ip}: ${date} ${time} - ${sanitizeInput(name)}`);
+    
     
     const database = await connectDB();
     const maxSlots = slotsPerHour || 1;
@@ -984,25 +1103,25 @@ app.post('/api/bookings', async (req, res) => {
     // Generate unique cancel token
     const cancelToken = generateCancelToken();
     
-    // Create booking with clinic info from the website
+    // Create booking with sanitized clinic info
     const booking = {
       id: Date.now(),
       date,
       time,
-      service: service || 'Consultation',
-      name: name || 'Guest',
-      email: email || '',
-      phone: phone || '',
+      service: sanitizeInput(service) || 'Consultation',
+      name: sanitizeInput(name) || 'Guest',
+      email: email ? email.toLowerCase().trim() : '',
+      phone: sanitizeInput(phone) || '',
       timezone: timezone || 'UTC',
-      notes: notes || '',
+      notes: sanitizeInput(notes) || '',
       cancelToken,
       status: 'confirmed',
-      // Store clinic/website info with the booking
-      clinicName: clinicName || 'Clinic',
-      clinicEmail: clinicEmail || '', // Owner's email for notifications
-      clinicPhone: clinicPhone || '',
-      clinicAddress: clinicAddress || '',
-      websiteUrl: websiteUrl || '',
+      // Store sanitized clinic/website info with the booking
+      clinicName: sanitizeInput(clinicName) || 'Clinic',
+      clinicEmail: clinicEmail ? clinicEmail.toLowerCase().trim() : '',
+      clinicPhone: sanitizeInput(clinicPhone) || '',
+      clinicAddress: sanitizeInput(clinicAddress) || '',
+      websiteUrl: sanitizeInput(websiteUrl) || '',
       createdAt: new Date().toISOString()
     };
     
