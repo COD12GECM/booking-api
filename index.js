@@ -91,13 +91,17 @@ const bookingLimiter = rateLimit({
 
 app.use(apiLimiter);
 
-// 3. CORS - ONLY allow your Shopify domain
+// 3. CORS - Allow your Shopify domains
 const allowedOrigins = [
   'https://buildhaze.com',
   'https://www.buildhaze.com',
   'https://buildhaze.myshopify.com',
   'https://dashboard.buildhaze.com',
-  'https://booking-dashboard-eco2.onrender.com'
+  'https://booking-dashboard-eco2.onrender.com',
+  // Client websites
+  'https://demolaw.myshopify.com',
+  'https://demolaw.com',
+  'https://www.demolaw.com'
 ];
 
 app.use(cors({
