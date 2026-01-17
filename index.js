@@ -91,34 +91,12 @@ const bookingLimiter = rateLimit({
 
 app.use(apiLimiter);
 
-// 3. CORS - Allow your Shopify domains
-const allowedOrigins = [
-  'https://buildhaze.com',
-  'https://www.buildhaze.com',
-  'https://buildhaze.myshopify.com',
-  'https://dashboard.buildhaze.com',
-  'https://booking-dashboard-eco2.onrender.com',
-  // Client websites
-  'https://demolaw.myshopify.com',
-  'https://demolaw.com',
-  'https://www.demolaw.com'
-];
-
+// 3. CORS - Allow all origins (multi-client booking system)
+// Security is handled by rate limiting, input sanitization, and validation
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, server-to-server)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`[SECURITY] Blocked CORS request from: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: '*',
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'X-API-Key'],
-  credentials: true
+  allowedHeaders: ['Content-Type']
 }));
 
 // 4. Body parser with limits
