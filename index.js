@@ -24,6 +24,10 @@ let db = null;
 async function connectDB() {
   if (db) return db;
   
+  if (!MONGODB_URI) {
+    throw new Error('MONGODB_URI environment variable is not set');
+  }
+  
   try {
     const client = new MongoClient(MONGODB_URI, {
       retryWrites: true,
