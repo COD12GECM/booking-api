@@ -859,6 +859,187 @@ async function sendCancellationEmail(booking) {
   }
 }
 
+// Send cancellation email to client when OWNER cancels - Apologetic Template
+async function sendOwnerCancelledClientEmail(booking) {
+  if (!BREVO_API_KEY) {
+    console.log('Skipping email - BREVO_API_KEY not configured');
+    return false;
+  }
+
+  const CLINIC_NAME = booking.clinicName || 'Clinic';
+  const CLINIC_EMAIL = booking.clinicEmail || '';
+  const CLINIC_PHONE = booking.clinicPhone || '';
+  const WEBSITE_URL = booking.websiteUrl || '';
+
+  const dateObj = new Date(booking.date + 'T' + booking.time);
+  const formattedDate = dateObj.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+
+  const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #e8eef3;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8eef3; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background: #e8eef3; border-radius: 32px; overflow: hidden; box-shadow: 20px 20px 60px #c5c9cd, -20px -20px 60px #ffffff;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding: 50px 40px 40px; text-align: center;">
+              <div style="width: 80px; height: 80px; background: #e8eef3; border-radius: 50%; margin: 0 auto 24px; box-shadow: 8px 8px 16px #c5c9cd, -8px -8px 16px #ffffff; display: inline-block;">
+                <table width="80" height="80"><tr><td align="center" valign="middle" style="font-size: 36px; color: #f59e0b;">&#9888;</td></tr></table>
+              </div>
+              <h1 style="color: #1e293b; margin: 0 0 8px; font-size: 28px; font-weight: 600; letter-spacing: -0.5px;">Appointment Cancelled</h1>
+              <p style="color: #64748b; margin: 0; font-size: 15px; font-weight: 400;">We're sorry for the inconvenience</p>
+            </td>
+          </tr>
+          
+          <!-- Apology Message -->
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <p style="color: #1e293b; font-size: 16px; margin: 0 0 16px;">Dear <strong>${booking.name}</strong>,</p>
+              <p style="color: #64748b; font-size: 15px; margin: 0 0 16px; line-height: 1.7;">We sincerely apologize, but we need to cancel your appointment scheduled for <strong style="color: #1e293b;">${formattedDate}</strong> at <strong style="color: #1e293b;">${booking.time}</strong>.</p>
+              <p style="color: #64748b; font-size: 15px; margin: 0; line-height: 1.7;">Due to unforeseen circumstances, we are unable to accommodate this booking. We truly value your time and apologize for any inconvenience this may cause.</p>
+            </td>
+          </tr>
+          
+          <!-- Cancelled Booking Details - Neumorphic -->
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 20px; box-shadow: 8px 8px 16px #c5c9cd, -8px -8px 16px #ffffff;">
+                <tr>
+                  <td style="padding: 28px;">
+                    <p style="color: #92400e; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 20px;">Cancelled Appointment</p>
+                    
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="40" valign="top" style="padding: 10px 0;">
+                          <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.6); border-radius: 10px; text-align: center; line-height: 36px; font-size: 16px;">&#128197;</div>
+                        </td>
+                        <td style="padding: 10px 0 10px 16px; border-bottom: 1px solid rgba(146,64,14,0.2);">
+                          <p style="color: #92400e; font-size: 11px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 1px;">Date & Time</p>
+                          <p style="color: #78350f; font-size: 16px; font-weight: 600; margin: 0;">${formattedDate} at ${booking.time}</p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td width="40" valign="top" style="padding: 10px 0;">
+                          <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.6); border-radius: 10px; text-align: center; line-height: 36px; font-size: 16px;">&#9733;</div>
+                        </td>
+                        <td style="padding: 10px 0 10px 16px; border-bottom: 1px solid rgba(146,64,14,0.2);">
+                          <p style="color: #92400e; font-size: 11px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 1px;">Service</p>
+                          <p style="color: #78350f; font-size: 16px; font-weight: 600; margin: 0;">${booking.service}</p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td width="40" valign="top" style="padding: 10px 0;">
+                          <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.6); border-radius: 10px; text-align: center; line-height: 36px; font-size: 16px;">&#35;</div>
+                        </td>
+                        <td style="padding: 10px 0 10px 16px;">
+                          <p style="color: #92400e; font-size: 11px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 1px;">Reference</p>
+                          <p style="color: #b45309; font-size: 18px; font-weight: 700; margin: 0;">#${booking.id}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Reschedule Message -->
+          <tr>
+            <td style="padding: 0 40px 32px; text-align: center;">
+              <p style="color: #64748b; font-size: 15px; margin: 0; line-height: 1.7;">We would love to reschedule your appointment at a time that works for you.</p>
+            </td>
+          </tr>
+          
+          <!-- Book Again Button - Neumorphic -->
+          <tr>
+            <td style="padding: 0 40px 32px; text-align: center;">
+              <a href="${WEBSITE_URL}/pages/booking" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 6px 6px 12px #c5c9cd, -6px -6px 12px #ffffff;">Reschedule Appointment</a>
+            </td>
+          </tr>
+          
+          <!-- Contact Section - Neumorphic Inset -->
+          <tr>
+            <td style="padding: 0 40px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background: #e8eef3; border-radius: 16px; box-shadow: inset 6px 6px 12px #c5c9cd, inset -6px -6px 12px #ffffff;">
+                <tr>
+                  <td style="padding: 24px; text-align: center;">
+                    <p style="color: #94a3b8; font-size: 11px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">Questions? Contact Us</p>
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 6px;">
+                      <a href="mailto:${CLINIC_EMAIL}" style="color: #3b82f6; text-decoration: none;">${CLINIC_EMAIL}</a>
+                    </p>
+                    <p style="color: #475569; font-size: 14px; margin: 0;">
+                      <a href="tel:${CLINIC_PHONE}" style="color: #3b82f6; text-decoration: none;">${CLINIC_PHONE}</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 40px; text-align: center;">
+              <p style="color: #94a3b8; font-size: 12px; margin: 0;">${new Date().getFullYear()} ${CLINIC_NAME}. All rights reserved.</p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': BREVO_API_KEY,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: {
+          name: CLINIC_NAME,
+          email: BREVO_SENDER_EMAIL
+        },
+        replyTo: {
+          email: CLINIC_EMAIL,
+          name: CLINIC_NAME
+        },
+        to: [{
+          email: booking.email,
+          name: booking.name
+        }],
+        subject: `Important: Your Appointment Has Been Cancelled - ${formattedDate}`,
+        htmlContent: emailHtml
+      })
+    });
+
+    if (response.ok) {
+      console.log(`Owner-cancelled notification sent to client ${booking.email}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Email sending error:', error.message);
+    return false;
+  }
+}
+
 // Create a booking
 app.post('/api/bookings', async (req, res) => {
   try {
@@ -1095,9 +1276,13 @@ app.post('/api/bookings/cancel', async (req, res) => {
     
     console.log(`Booking cancelled${isOwnerCancel ? ' by owner' : ''}: ${booking.date} ${booking.time} - ${booking.name}`);
     
-    // Send cancellation email to client
+    // Send cancellation email to client - different template if owner cancels
     if (booking.email) {
-      sendCancellationEmail(booking);
+      if (isOwnerCancel) {
+        sendOwnerCancelledClientEmail(booking); // Apologetic email when owner cancels
+      } else {
+        sendCancellationEmail(booking); // Normal cancellation email when client cancels
+      }
     }
     
     // Send notification to clinic owner only if cancelled by client
