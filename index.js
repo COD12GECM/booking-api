@@ -182,6 +182,7 @@ app.get('/', (req, res) => {
     status: 'ok', 
     message: 'Booking API v3.0 (MongoDB)',
     database: db ? 'connected' : 'disconnected',
+    brevoConfigured: !!BREVO_API_KEY,
     endpoints: {
       'GET /api/bookings': 'Get booking counts by date-time',
       'POST /api/bookings': 'Create a booking',
