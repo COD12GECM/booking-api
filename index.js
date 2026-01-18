@@ -1072,8 +1072,13 @@ app.post('/api/bookings', bookingLimiter, async (req, res) => {
     const database = await connectDB();
     const maxSlots = slotsPerHour || 1;
     
-    // Count existing bookings for this slot
-    const existingCount = await database.collection('bookings').countDocuments({ date, time, status: { $ne: 'cancelled' } });
+    // Count existing bookings for this slot (per clinic)
+    const existingCount = await database.collection('bookings').countDocuments({ 
+      date, 
+      time, 
+      clinicEmail: clinicEmail ? clinicEmail.toLowerCase().trim() : '',
+      status: { $nin: ['cancelled', 'no-show'] } 
+    });
     
     if (existingCount >= maxSlots) {
       return res.status(409).json({ 
