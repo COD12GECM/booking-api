@@ -148,8 +148,14 @@ const bookingLimiter = (req, res, next) => next(); // Disabled for testing
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type']
+  allowedHeaders: ['Content-Type', 'Accept', 'Origin', 'X-Requested-With'],
+  credentials: false,
+  optionsSuccessStatus: 200, // Safari compatibility
+  preflightContinue: false
 }));
+
+// Handle preflight requests explicitly for Safari
+app.options('*', cors());
 
 // 4. Body parser with limits
 app.use(express.json({ limit: '10kb' }));
