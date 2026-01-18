@@ -1185,7 +1185,11 @@ app.post('/api/bookings', bookingLimiter, async (req, res) => {
     
     // Send notification to clinic owner about new booking
     if (clinicEmail) {
-      sendOwnerBookingNotification(booking);
+      console.log('[OWNER EMAIL] Sending notification to:', clinicEmail);
+      const ownerEmailResult = await sendOwnerBookingNotification(booking);
+      console.log('[OWNER EMAIL] Result:', ownerEmailResult);
+    } else {
+      console.log('[OWNER EMAIL] Skipped - no clinicEmail provided');
     }
     
     res.json({ 
