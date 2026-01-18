@@ -95,6 +95,26 @@ async function connectDB() {
 }
 
 // ===========================================
+// MONGODB KEEP-ALIVE CRON (every 4 minutes)
+// ===========================================
+setInterval(async () => {
+  try {
+    if (db && mongoClient) {
+      await db.command({ ping: 1 });
+      console.log('🔄 [CRON] MongoDB keep-alive ping successful');
+    } else {
+      console.log('🔄 [CRON] MongoDB not connected, reconnecting...');
+      await connectDB();
+      console.log('✅ [CRON] MongoDB reconnected');
+    }
+  } catch (error) {
+    console.log('⚠️ [CRON] MongoDB ping failed, will reconnect on next request:', error.message);
+    db = null;
+    mongoClient = null;
+  }
+}, 4 * 60 * 1000); // Every 4 minutes
+
+// ===========================================
 // SECURITY MIDDLEWARE
 // ===========================================
 
