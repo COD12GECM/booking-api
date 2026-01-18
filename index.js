@@ -143,19 +143,19 @@ app.use(helmet({
 // app.use(apiLimiter);
 const bookingLimiter = (req, res, next) => next(); // Disabled for testing
 
-// 3. CORS - Allow all origins (multi-client booking system)
-// Security is handled by rate limiting, input sanitization, and validation
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Accept', 'Origin', 'X-Requested-With'],
-  credentials: false,
-  optionsSuccessStatus: 200, // Safari compatibility
-  preflightContinue: false
-}));
-
-// Handle preflight requests explicitly for Safari
-app.options('*', cors());
+// 3. CORS - Manual headers for Safari compatibility
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Origin, X-Requested-With');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // 4. Body parser with limits
 app.use(express.json({ limit: '10kb' }));
