@@ -83,7 +83,7 @@ const apiLimiter = rateLimit({
 
 const bookingLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 5, // 5 bookings per minute per IP
+  max: 20, // 20 bookings per minute per IP (increased for testing)
   message: { success: false, error: 'Too many booking attempts. Please wait a moment.' },
   standardHeaders: true,
   legacyHeaders: false
@@ -1093,6 +1093,8 @@ async function sendOwnerCancelledClientEmail(booking) {
 
 // Create a booking (with rate limiting and input sanitization)
 app.post('/api/bookings', bookingLimiter, async (req, res) => {
+  console.log('[BOOKING API] Request received from:', req.headers.origin || 'unknown', 'IP:', req.ip);
+  
   try {
     const { 
       date, time, service, name, email, phone, timezone, notes, slotsPerHour,
