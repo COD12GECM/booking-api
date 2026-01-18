@@ -27,25 +27,55 @@ if (!BREVO_API_KEY) {
 const DB_NAME = 'bookingdb';
 
 let db = null;
+let mongoClient = null;
 
 async function connectDB() {
-  if (db) return db;
+  // Check if existing connection is still alive
+  if (db && mongoClient) {
+    try {
+      // Ping to verify connection is alive
+      await db.command({ ping: 1 });
+      return db;
+    } catch (pingError) {
+      console.log('⚠️ MongoDB connection lost, reconnecting...', pingError.message);
+      db = null;
+      mongoClient = null;
+    }
+  }
   
   if (!MONGODB_URI) {
     throw new Error('MONGODB_URI environment variable is not set');
   }
   
   try {
-    const client = new MongoClient(MONGODB_URI, {
+    console.log('🔄 Connecting to MongoDB...');
+    mongoClient = new MongoClient(MONGODB_URI, {
       retryWrites: true,
       w: 'majority',
       maxPoolSize: 10,
+      minPoolSize: 2,
       serverSelectionTimeoutMS: 30000,
-      socketTimeoutMS: 45000
+      socketTimeoutMS: 45000,
+      heartbeatFrequencyMS: 10000,
+      retryReads: true
     });
-    await client.connect();
-    db = client.db(DB_NAME);
+    
+    await mongoClient.connect();
+    db = mongoClient.db(DB_NAME);
     console.log('✅ Connected to MongoDB Atlas');
+    
+    // Handle connection events
+    mongoClient.on('close', () => {
+      console.log('⚠️ MongoDB connection closed');
+      db = null;
+      mongoClient = null;
+    });
+    
+    mongoClient.on('error', (error) => {
+      console.error('❌ MongoDB error:', error.message);
+      db = null;
+      mongoClient = null;
+    });
     
     // Create indexes for better performance
     try {
@@ -59,6 +89,7 @@ async function connectDB() {
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
     db = null;
+    mongoClient = null;
     throw error;
   }
 }
