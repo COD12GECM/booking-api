@@ -162,11 +162,19 @@ app.get('/', (req, res) => {
   });
 });
 
-// Get booking counts by date-time slot
+// Get booking counts by date-time slot (filtered by clinicEmail)
 app.get('/api/bookings', async (req, res) => {
   try {
+    const { clinicEmail } = req.query;
     const database = await connectDB();
-    const bookings = await database.collection('bookings').find({}).toArray();
+    
+    // Build query - filter by clinicEmail if provided, exclude cancelled/no-show
+    const query = { status: { $nin: ['cancelled', 'no-show'] } };
+    if (clinicEmail) {
+      query.clinicEmail = clinicEmail.toLowerCase().trim();
+    }
+    
+    const bookings = await database.collection('bookings').find(query).toArray();
     
     const counts = {};
     bookings.forEach(booking => {
