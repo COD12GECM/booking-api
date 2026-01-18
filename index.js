@@ -1335,19 +1335,6 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Self-ping to prevent Render cold starts (every 14 minutes)
-const API_URL = process.env.RENDER_EXTERNAL_URL || 'https://booking-api-09uo.onrender.com';
-setInterval(async () => {
-  try {
-    const response = await fetch(`${API_URL}/health`);
-    if (response.ok) {
-      console.log('[KEEP-ALIVE] Self-ping successful');
-    }
-  } catch (err) {
-    console.log('[KEEP-ALIVE] Self-ping failed:', err.message);
-  }
-}, 14 * 60 * 1000); // Every 14 minutes
-
 // Start server
 app.listen(PORT, async () => {
   console.log(`
@@ -1356,7 +1343,6 @@ app.listen(PORT, async () => {
 ╠════════════════════════════════════════════╣
 ║  Port: ${PORT}                               ║
 ║  Status: Starting...                       ║
-║  Keep-Alive: Active (14 min)               ║
 ╚════════════════════════════════════════════╝
   `);
   
