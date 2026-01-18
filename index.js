@@ -1202,27 +1202,8 @@ app.post('/api/bookings', bookingLimiter, async (req, res) => {
     // Log booking attempt
     console.log(`[BOOKING] Attempt from ${req.ip}: ${date} ${time} - ${sanitizeInput(name)}`);
     
-    // Retry logic for database operations
-    let database;
-    let retries = 3;
-    while (retries > 0) {
-      try {
-        database = await connectDB();
-        // Test connection with a simple operation
-        await database.command({ ping: 1 });
-        break;
-      } catch (dbError) {
-        console.log(`[BOOKING] DB connection failed, retries left: ${retries - 1}`, dbError.message);
-        db = null;
-        mongoClient = null;
-        retries--;
-        if (retries === 0) {
-          return res.status(503).json({ success: false, error: 'Database temporarily unavailable. Please try again.' });
-        }
-        await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retry
-      }
-    }
-    
+    // Simple database connection
+    const database = await connectDB();
     const maxSlots = slotsPerHour || 1;
     
     // Count existing bookings for this slot (per clinic)
