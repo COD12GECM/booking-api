@@ -197,7 +197,27 @@ const sanitizeInput = (input) => {
 // 9. Remove X-Powered-By
 app.disable('x-powered-by');
 
-// Health check
+// Health check with MongoDB ping - USE THIS FOR CRON JOBS
+app.get('/health', async (req, res) => {
+  try {
+    const database = await connectDB();
+    await database.command({ ping: 1 });
+    res.json({ 
+      status: 'ok', 
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[HEALTH] MongoDB ping failed:', error.message);
+    res.status(503).json({ 
+      status: 'error', 
+      database: 'disconnected',
+      error: error.message 
+    });
+  }
+});
+
+// Basic info endpoint
 app.get('/', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -205,6 +225,7 @@ app.get('/', (req, res) => {
     database: db ? 'connected' : 'disconnected',
     brevoConfigured: !!BREVO_API_KEY,
     endpoints: {
+      'GET /health': 'Health check with MongoDB ping (USE FOR CRON)',
       'GET /api/bookings': 'Get booking counts by date-time',
       'POST /api/bookings': 'Create a booking',
       'GET /api/bookings/all': 'Get all bookings (admin)',
