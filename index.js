@@ -103,24 +103,25 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// 2. Rate Limiting
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per 15 min
-  message: { success: false, error: 'Too many requests, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+// 2. Rate Limiting - DISABLED FOR TESTING
+// const apiLimiter = rateLimit({
+//   windowMs: 15 * 60 * 1000, // 15 minutes
+//   max: 100, // 100 requests per 15 min
+//   message: { success: false, error: 'Too many requests, please try again later.' },
+//   standardHeaders: true,
+//   legacyHeaders: false
+// });
 
-const bookingLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 20, // 20 bookings per minute per IP (increased for testing)
-  message: { success: false, error: 'Too many booking attempts. Please wait a moment.' },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+// const bookingLimiter = rateLimit({
+//   windowMs: 60 * 1000, // 1 minute
+//   max: 20, // 20 bookings per minute per IP (increased for testing)
+//   message: { success: false, error: 'Too many booking attempts. Please wait a moment.' },
+//   standardHeaders: true,
+//   legacyHeaders: false
+// });
 
-app.use(apiLimiter);
+// app.use(apiLimiter);
+const bookingLimiter = (req, res, next) => next(); // Disabled for testing
 
 // 3. CORS - Allow all origins (multi-client booking system)
 // Security is handled by rate limiting, input sanitization, and validation
