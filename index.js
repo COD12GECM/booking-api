@@ -1100,6 +1100,9 @@ app.post('/api/bookings', bookingLimiter, async (req, res) => {
       clinicName, clinicEmail, clinicPhone, clinicAddress, websiteUrl
     } = req.body;
     
+    // Log incoming booking request for debugging
+    console.log('[BOOKING REQUEST]', JSON.stringify({ date, time, name, email, clinicEmail, clinicName, slotsPerHour }));
+    
     // Validate required fields
     if (!date || !time) {
       return res.status(400).json({ success: false, error: 'Date and time are required' });
