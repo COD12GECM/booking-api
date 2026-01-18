@@ -192,6 +192,47 @@ app.get('/api/bookings/all', async (req, res) => {
   }
 });
 
+// Get team members for a clinic (from owners database)
+app.get('/api/team-members', async (req, res) => {
+  try {
+    const { clinicEmail } = req.query;
+    
+    if (!clinicEmail) {
+      return res.json({ success: false, error: 'clinicEmail is required', teamMembers: [] });
+    }
+    
+    // Connect to owners database
+    const client = new MongoClient(MONGODB_URI);
+    await client.connect();
+    const ownersDb = client.db('test'); // owners are stored in 'test' database
+    
+    const owner = await ownersDb.collection('owners').findOne({ 
+      email: clinicEmail.toLowerCase() 
+    });
+    
+    await client.close();
+    
+    if (!owner || !owner.teamMembers || owner.teamMembers.length === 0) {
+      return res.json({ success: true, teamMembers: [] });
+    }
+    
+    // Return only active team members with necessary fields
+    const activeMembers = owner.teamMembers
+      .filter(m => m.isActive !== false)
+      .map(m => ({
+        _id: m._id.toString(),
+        name: m.name,
+        role: m.role || 'Specialist',
+        color: m.color || '#10b981'
+      }));
+    
+    res.json({ success: true, teamMembers: activeMembers });
+  } catch (error) {
+    console.error('Get team members error:', error);
+    res.json({ success: false, error: error.message, teamMembers: [] });
+  }
+});
+
 // Generate unique cancel token
 function generateCancelToken() {
   return crypto.randomBytes(32).toString('hex');
@@ -276,11 +317,17 @@ async function sendConfirmationEmail(booking) {
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding: 16px 0;${CLINIC_ADDRESS ? ' border-bottom: 1px solid #e9ecef;' : ''}">
+                        <td style="padding: 16px 0; border-bottom: 1px solid #e9ecef;">
                           <p style="color: #6c757d; font-size: 14px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 1px;">Service</p>
                           <p style="color: #1a1a1a; font-size: 20px; font-weight: 600; margin: 0;">${booking.service}</p>
                         </td>
                       </tr>
+                      ${booking.teamMemberName ? `<tr>
+                        <td style="padding: 16px 0;${CLINIC_ADDRESS ? ' border-bottom: 1px solid #e9ecef;' : ''}">
+                          <p style="color: #6c757d; font-size: 14px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 1px;">Specialist</p>
+                          <p style="color: #1a1a1a; font-size: 20px; font-weight: 600; margin: 0;">${booking.teamMemberName}</p>
+                        </td>
+                      </tr>` : ''}
                       ${CLINIC_ADDRESS ? `<tr>
                         <td style="padding: 16px 0;">
                           <p style="color: #6c757d; font-size: 14px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 1px;">Location</p>
@@ -1109,7 +1156,11 @@ app.post('/api/bookings', bookingLimiter, async (req, res) => {
       clinicPhone: sanitizeInput(clinicPhone) || '',
       clinicAddress: sanitizeInput(clinicAddress) || '',
       websiteUrl: sanitizeInput(websiteUrl) || '',
-      createdAt: new Date().toISOString()
+      // Team member info (from Shopify form)
+      teamMemberId: req.body.teamMemberId || '',
+      teamMemberName: sanitizeInput(req.body.teamMemberName) || '',
+      createdAt: new Date().toISOString(),
+      source: 'shopify'
     };
     
     await database.collection('bookings').insertOne(booking);
