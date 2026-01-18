@@ -276,17 +276,17 @@ async function sendConfirmationEmail(booking) {
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding: 16px 0; border-bottom: 1px solid #e9ecef;">
+                        <td style="padding: 16px 0;${CLINIC_ADDRESS ? ' border-bottom: 1px solid #e9ecef;' : ''}">
                           <p style="color: #6c757d; font-size: 14px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 1px;">Service</p>
                           <p style="color: #1a1a1a; font-size: 20px; font-weight: 600; margin: 0;">${booking.service}</p>
                         </td>
                       </tr>
-                      <tr>
+                      ${CLINIC_ADDRESS ? `<tr>
                         <td style="padding: 16px 0;">
                           <p style="color: #6c757d; font-size: 14px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 1px;">Location</p>
                           <p style="color: #1a1a1a; font-size: 20px; font-weight: 600; margin: 0;">${CLINIC_ADDRESS}</p>
                         </td>
-                      </tr>
+                      </tr>` : ''}
                     </table>
                   </td>
                 </tr>
