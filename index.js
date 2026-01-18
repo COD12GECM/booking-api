@@ -1213,7 +1213,11 @@ app.post('/api/bookings', bookingLimiter, async (req, res) => {
     
     // Send confirmation email to client
     if (email) {
-      sendConfirmationEmail(booking);
+      console.log('[CLIENT EMAIL] Sending confirmation to:', email);
+      const clientEmailResult = await sendConfirmationEmail(booking);
+      console.log('[CLIENT EMAIL] Result:', clientEmailResult);
+    } else {
+      console.log('[CLIENT EMAIL] Skipped - no email provided');
     }
     
     // Send notification to clinic owner about new booking
